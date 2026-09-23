@@ -152,21 +152,22 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// Seed Database (Development Only)
-if (app.Environment.IsDevelopment())
+// Apply migrations and seed database on startup (both Development and Production)
+using (var scope = app.Services.CreateScope())
 {
-    using (var scope = app.Services.CreateScope())
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    try
     {
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        try
-        {
-            await DbInitializer.SeedAsync(context);
-        }
-        catch (Exception ex)
-        {
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-            logger.LogError(ex, "An error occurred while seeding the database.");
-        }
+        // Apply any pending migrations
+        await context.Database.MigrateAsync();
+        
+        // Seed the database with initial data
+        await DbInitializer.SeedAsync(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
     }
 }
 
