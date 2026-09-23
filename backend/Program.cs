@@ -13,10 +13,12 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database (PostgreSQL EF Core)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["DATABASE_URL"]
     ?? Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found in configuration or environment variables.");
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' or 'DATABASE_URL' not found.");
+
+var connectionString = FormatPostgresUrl(rawConnectionString);
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
@@ -220,3 +222,23 @@ public class SuppressAntiforgeryFeature : Microsoft.AspNetCore.Antiforgery.IAnti
     public Exception? Error => null;
 }
 
+public partial class Program
+{
+    public static string FormatPostgresUrl(string connStr)
+    {
+        if (connStr.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            connStr.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            var uri = new Uri(connStr);
+            var userInfo = uri.UserInfo.Split(new[] { ':' }, 2);
+            var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+            var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+            var host = uri.Host;
+            var port = uri.Port > 0 ? uri.Port : 5432;
+            var database = uri.AbsolutePath.TrimStart('/');
+
+            return $"Host={host};Port={port};Database={database};Username={user};Password={pass};Trust Server Certificate=true;SSL Mode=Prefer;";
+        }
+        return connStr;
+    }
+}
