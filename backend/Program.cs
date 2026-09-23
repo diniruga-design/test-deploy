@@ -14,7 +14,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configure Database (PostgreSQL EF Core)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found in configuration or environment variables.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString, npgsqlOptions =>
@@ -218,3 +220,4 @@ public class SuppressAntiforgeryFeature : Microsoft.AspNetCore.Antiforgery.IAnti
     public bool IsValid => true;
     public Exception? Error => null;
 }
+
